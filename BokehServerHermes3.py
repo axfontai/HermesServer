@@ -16,9 +16,11 @@ import sqlite3 as sql
 import numpy as np
 
 
+
 # Utiliser la commande bokeh serve --show BokehServerHermes3.py pour lancer le serveur local et profiter des callbacks
 # dir dans lequel est installé la database sqlite3
-SQLiteDir = '/Users/griceldacalzada/Documents/Python/TestCarrefoursFeux/SQlite'
+SQLiteDir = '/Volumes/Données/Python/TestCarrefoursFeux/SQlite'
+# /Users/griceldacalzada/Documents/Python/TestCarrefoursFeux/SQlite
 
 # se connecte se la base de donnee sqlite3 Hermes qui contient les donnees individuelles
 # et à la db Meldpunten qui contient les donnees theoriques
@@ -91,6 +93,8 @@ def FormatDataFrame(DataFrame):
     DataFrame['H_AA'] = pd.to_datetime(DataFrame['H_AA'], format='%H:%M:%S')
     DataFrame['H_LF'] = pd.to_datetime(DataFrame['H_LF'], format='%H:%M:%S')
     DataFrame['H_AF'] = pd.to_datetime(DataFrame['H_AF'], format='%H:%M:%S')
+    DataFrame['TpsVA_LF'] = DataFrame['H_LF'].sub(DataFrame['H_VA'])
+    DataFrame['TpsVA_LF'] = DataFrame['TpsVA_LF'].dt.total_seconds()
     DataFrame = DataFrame.replace(0.0, np.NaN)
     return DataFrame
 
@@ -125,7 +129,7 @@ ListlignesStr, ListLignes = list_lignes(CurrentB3S, conn)
 LastDateStr, LastDateTimestamp = last_date(CurrentB3S, conn)
 
 # cree un Column Data Source lisible par bokeh et utilisee par les graphes
-StartDict = dict(Jour=[], NumLigne=[], H_VA=[], H_AA=[], H_LF=[], H_AF=[], KiKo=[], NumParc=[], WeekDay=[], TpsVA_AA=[],
+StartDict = dict(Jour=[], NumLigne=[], H_VA=[], H_AA=[], H_LF=[], H_AF=[], KiKo=[], NumParc=[], WeekDay=[], TpsVA_LF=[],
                  TpsLF_AF=[], SpeedLF_AF=[], SpeedVA_AF=[], X_VA_merc=[], Y_VA_merc=[], X_AA_merc=[], Y_AA_merc=[]
                  , X_AF_merc=[], Y_AF_merc=[], JourDatetime=[])
 
@@ -258,20 +262,24 @@ hist.xaxis.axis_label = 'temps en secondes'
 
 # initialise les données des histogrammes
 
-histVA_AA, edgesVA_AA = np.histogram([0, 120], density=True, bins=range(0, 121))
+histVA_LF, edgesVA_LF = np.histogram([0, 120], density=True, bins=range(0, 121))
 histAA_LF, edgesAA_LF = np.histogram([0, 120], density=True, bins=range(0, 121))
 histLF_AF, edgesLF_AF = np.histogram([0, 120], density=True, bins=range(0, 121))
 
 HistLF_AF = hist.quad(top=histLF_AF, bottom=0, left=edgesLF_AF[:-1], right=edgesLF_AF[1:], fill_color='yellowgreen',
                       fill_alpha=0.5, line_color='darkgreen')
-HistVA_AA = hist.quad(top=histVA_AA, bottom=0, left=edgesVA_AA[:-1], right=edgesVA_AA[1:], fill_color='coral',
+HistVA_LF = hist.quad(top=histVA_LF, bottom=0, left=edgesVA_LF[:-1], right=edgesVA_LF[1:], fill_color='coral',
                       fill_alpha=0.5, line_color='red')
 HistAA_LF = hist.quad(top=histAA_LF, bottom=0, left=edgesAA_LF[:-1], right=edgesAA_LF[1:], fill_color='steelblue',
                       fill_alpha=0.5, line_color='navy')
-# donnees theoriques
+
+# donnees theoriques du tableau
+
+TempsTheoriques = dict(TpsTheoriques=[], TpsTheoriques2=[])
 Spans = hist.quad(top=0.5, bottom=0, left='TpsTheorique', right='TpsTheorique', source=meldpunten_source,
                   color=factor_cmap('Type_Message', palette=colormap, factors=messages))
-
+BoxTh = hist.quad(top=0.5, bottom=0.4, left='TpsTheorique', right='TpsTheorique', source=meldpunten_source,
+                  color=factor_cmap('Type_Message', palette=colormap, factors=messages))
 
 # Initialise le tableau avec les donnees des histogrammes dans l'histogramme des temps de parcours
 
@@ -280,7 +288,6 @@ GlyphSource = ColumnDataSource(dict(x=[60, 80, 90, 100], y=[0.1, 0.1, 0.1, 0.1],
 glyph = Text(x='x', y='y', text='text', text_font_size='12pt', text_baseline='bottom', text_color='colors',
              text_font_style='bold')
 hist.add_glyph(GlyphSource, glyph)
-
 
 def update_database():
     # mise a jour des valeurs et de la nouvelle DataFrame
@@ -304,7 +311,7 @@ def update_database():
                                H_LF=NewDataFrame['H_LF'], H_AF=NewDataFrame['H_AF'],
                                KiKo=NewDataFrame['KiKo'], NumParc=NewDataFrame['NumParc'],
                                WeekDay=NewDataFrame['WeekDay'],
-                               TpsVA_AA=NewDataFrame['TpsVA_AA'], TpsLF_AF=NewDataFrame['TpsLF_AF'],
+                               TpsVA_LF=NewDataFrame['TpsVA_LF'], TpsLF_AF=NewDataFrame['TpsLF_AF'],
                                SpeedLF_AF=NewDataFrame['SpeedLF_AF'], SpeedVA_AF=NewDataFrame['SpeedVA_AF'],
                                X_VA_merc=NewDataFrame['X_VA_merc'], Y_VA_merc=NewDataFrame['Y_VA_merc'],
                                X_AA_merc=NewDataFrame['X_AA_merc'], Y_AA_merc=NewDataFrame['Y_AA_merc'],
@@ -331,26 +338,26 @@ def update_database():
                               rate=vitesse_NewDF['rate'])
 
     # données de l'histogramme avec les valeurs de temps de parcours
-    histVA_AA, edgesVA_AA = np.histogram(NewDataFrame['TpsVA_AA'], density=True, bins=range(0, 121))
+    histVA_LF, edgesVA_LF = np.histogram(NewDataFrame['TpsVA_LF'], density=True, bins=range(0, 121))
     histAA_LF, edgesAA_LF = np.histogram(NewDataFrame['TpsAA_LF'], density=True, bins=range(0, 121))
     histLF_AF, edgesLF_AF = np.histogram(NewDataFrame['TpsLF_AF'], density=True, bins=range(0, 121))
 
     # mise a jour des histogrammes
 
-    HistVA_AA.data_source.data["top"] = histVA_AA
+    HistVA_LF.data_source.data["top"] = histVA_LF
     HistAA_LF.data_source.data["top"] = histAA_LF
     HistLF_AF.data_source.data["top"] = histLF_AF
 
     # Mise a jour du Tableau avec les donnees des histogrammes dans l'histogramme des temps de parcours
     label_text_lignes = ("Moyenne = \nMediane = \nEcart-type = ")
-    label_text_VA_AA = ("VA_AA \n" + str(NewDataFrame['TpsVA_AA'].mean())[:6] + '\n' + str(
-        NewDataFrame['TpsVA_AA'].median())[:6] + '\n' + str(NewDataFrame['TpsVA_AA'].std())[:6])
+    label_text_VA_LF = ("VA_LF \n" + str(NewDataFrame['TpsVA_LF'].mean())[:6] + '\n' + str(
+        NewDataFrame['TpsVA_LF'].median())[:6] + '\n' + str(NewDataFrame['TpsVA_LF'].std())[:6])
     label_text_AA_LF = ("AA_LF \n" + str(NewDataFrame['TpsAA_LF'].mean())[:6] + '\n' + str(
         NewDataFrame['TpsAA_LF'].median())[:6] + '\n' + str(NewDataFrame['TpsAA_LF'].std())[:6])
     label_text_LF_AF = ("LF_AF \n" + str(NewDataFrame['TpsLF_AF'].mean())[:6] + '\n' + str(
         NewDataFrame['TpsLF_AF'].median())[:6] + '\n' + str(NewDataFrame['TpsLF_AF'].std())[:6])
 
-    GlyphSource.data["text"] = [label_text_lignes, label_text_VA_AA, label_text_AA_LF, label_text_LF_AF]
+    GlyphSource.data["text"] = [label_text_lignes, label_text_VA_LF, label_text_AA_LF, label_text_LF_AF]
     conn.commit()
 
 
@@ -377,7 +384,7 @@ for control in controls:
     control.on_change('value', lambda attr, old, new: update_database())
 button_update.on_click(update_database)
 
-B3SSelect.on_change('value', lambda  attr, old, new: update_b3s())
+B3SSelect.on_change('value', lambda attr, old, new: update_b3s())
 
 # mise en page initiale
 TabsDays = Tabs(tabs=[tab_vitesses, tab_points])
@@ -388,7 +395,7 @@ layout = column(
 
 # initialise les données
 update_database()
-
+output_file('Hermes3.html')
 curdoc().add_root(layout)
 show(layout)
 
