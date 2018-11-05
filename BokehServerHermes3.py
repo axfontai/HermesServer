@@ -1,3 +1,4 @@
+#librairies indispensables : bokeh - pandas
 from bokeh.io import curdoc, show
 from bokeh.plotting import figure, output_file
 from bokeh.transform import jitter, factor_cmap, dodge
@@ -11,31 +12,28 @@ from bokeh.layouts import column, row
 from bokeh.models.glyphs import Text
 from bokeh.tile_providers import STAMEN_TERRAIN
 import pandas as pd
-import pandas.io.sql as pdsql
-import sqlite3 as sql
+import sqlalchemy as sqlal
 import numpy as np
 
+# Utiliser la commande bokeh serve --show BokehServerHermes3.py pour
+#lancer le serveur local et profiter des callbacks
 
+# dir dans lequel sont installés les db sqlite3
+SQLiteDir = "C:\\Users\\afontaine\\Documents\\Python\\SQLite\\"
+HermesDB = "Hermes2018.db" #DB sqlite3 avec donnees des véhicules
+MeldpuntenDB = "Meldpunten.db" #DB sqlite3 avec données th des pts d'emission
+#SQLite => SQLAlchemy engine
+hermes_engine = sqlal.create_engine('sqlite:///' + SQLiteDir + HermesDB)
+meldpunten_engine = sqlal.create_engine('sqlite:///' + SQLiteDir + MeldpuntenDB)
 
-# Utiliser la commande bokeh serve --show BokehServerHermes3.py pour lancer le serveur local et profiter des callbacks
-# dir dans lequel est installé la database sqlite3
-SQLiteDir = '/Volumes/Données/Python/TestCarrefoursFeux/SQlite'
-# /Users/griceldacalzada/Documents/Python/TestCarrefoursFeux/SQlite
+# liste des b3s dans la base de donnée hermes
+B3S_list=sqlal.inspect(hermes_engine).get_table_names()
 
-# se connecte se la base de donnee sqlite3 Hermes qui contient les donnees individuelles
-# et à la db Meldpunten qui contient les donnees theoriques
-conn = sql.connect(SQLiteDir + '/Hermes3.db')
-conn_meldpunten = sql.connect(SQLiteDir + '/Meldpunten.db')
-
-# liste des b3s dans la base de donnée
-B3S_DF = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='table';", conn)
-B3S_list = list(B3S_DF['name'])
-
+#carrefour affiché en premier
 CurrentB3S = 'B3S274'
-#StartDateStr = '2018-05-01 00:00:00'
-StartDate = pd.Timestamp('2018-05-05 00:00:00')
+StartDate = pd.Timestamp('2018-09-14 00:00:00')
 FirstDate = '2017-01-01 00:00:00'
-FirstDate = pd.Timestamp('2017-01-01 00:00:00')
+FirstDate = pd.Timestamp('2018-01-01 00:00:00')
 
 def List_to_SQL(list):
     first = True
@@ -50,36 +48,36 @@ def List_to_SQL(list):
     return sql_str
 
 
-def list_kiko(b3s, conn):
+def list_kiko(b3s):
     # Extrait en en liste et str les kikos de la db
-    ListKiKo = pdsql.read_sql_query('SELECT DISTINCT KiKo FROM ' + b3s + ';', conn)
+    ListKiKo = pd.read_sql_query('SELECT DISTINCT KiKo FROM ' + b3s + ';', hermes_engine)
     ListKiKoStr = List_to_SQL(ListKiKo['KiKo'])
     ListKiKo = ListKiKo['KiKo'].tolist()
     ListKiKo = [str(i) for i in ListKiKo]
     return ListKiKoStr, ListKiKo
 
 
-def list_lignes(b3s, conn):
+def list_lignes(b3s):
     # Extrait en en liste et str les numeros de lignes de la db
-    ListLignes = pdsql.read_sql_query('SELECT DISTINCT NumLigne FROM ' + b3s + ';', conn)
+    ListLignes = pd.read_sql_query('SELECT DISTINCT NumLigne FROM ' + b3s + ';', hermes_engine)
     ListLignesStr = List_to_SQL(ListLignes['NumLigne'])
     ListLignes = ListLignes['NumLigne'].tolist()
     ListLignes = [str(i) for i in ListLignes]
     return ListLignesStr, ListLignes
 
 
-def first_date(b3s, conn):
+def first_date(b3s):
     # Extrait en Timestamp la date la plus ancienne de la db
-    FirstDate = pdsql.read_sql_query('SELECT min(Jour) FROM ' + b3s + ';', conn)
+    FirstDate = pd.read_sql_query('SELECT min(Jour) FROM ' + b3s + ';', hermes_engine)
     FirstDate = list(FirstDate['min(Jour)'])
     # FirstDateStr = FirstDate[0]
     FirstDate = pd.Timestamp(FirstDate[0])
     return FirstDate
 
 
-def last_date(b3s, conn):
+def last_date(b3s):
     # Extrait en Timestamp la date la plus récente de la db
-    LastDate = pdsql.read_sql_query('SELECT max(Jour) FROM ' + b3s + ';', conn)
+    LastDate = pd.read_sql_query('SELECT max(Jour) FROM ' + b3s + ';', hermes_engine)
     LastDate = list(LastDate['max(Jour)'])
     LastDateStr = str(LastDate[0])
     LastDateTimestamp = pd.Timestamp(LastDate[0])
@@ -99,34 +97,34 @@ def FormatDataFrame(DataFrame):
     return DataFrame
 
 
-def SQLquery(b3s, KiKo, NumLigne, StartDate, EndDate, conn):
+def SQLquery(b3s, KiKo, NumLigne, StartDate, EndDate):
     # Cree une requete SQL lisible par sqlite3
-    ColumnInDF = """ Jour, NumLigne, H_VA, H_AA, H_LF, H_AF, KiKo, NumParc, WeekDay, 
+    ColumnInDF = """ Jour, NumLigne, H_VA, H_AA, H_LF, H_AF, KiKo, NumParc, WeekDay,
     TpsVA_AA, SpeedVA_AA, TpsAA_LF, SpeedAA_LF, TpsLF_AF, SpeedLF_AF, SpeedVA_AF,
     X_VA_merc, Y_VA_merc, X_AA_merc, Y_AA_merc, X_AF_merc, Y_AF_merc """
     RemoveFalseX = ' AND X_VA BETWEEN 4.2 AND 4.5 AND X_AA BETWEEN 4.2 AND 4.5 AND X_LF BETWEEN 4.2 AND 4.5 AND X_AF BETWEEN 4.2 AND 4.5'
     RemoveFalseY = ' AND Y_VA BETWEEN 50.2 AND 51 AND Y_AA BETWEEN 50.2 AND 51 AND Y_LF BETWEEN 50.2 AND 51 AND Y_AF BETWEEN 50.2 AND 51'
     RemoveNaN = ' AND SpeedVA_AF != 0.0 AND SpeedVA_AF < 80'
     query = 'SELECT' + ColumnInDF + 'FROM ' + b3s + ' WHERE KiKo IN ' + KiKo + ' AND NumLigne IN ' + NumLigne + ' AND Jour BETWEEN ' + '"' + StartDate + '"' + ' AND ' + '"' + EndDate + '"' + RemoveFalseX + RemoveFalseY + RemoveNaN + ';'
-    DataFrame = pdsql.read_sql(query, conn)
+    DataFrame = pd.read_sql(query, hermes_engine)
     DataFrame = FormatDataFrame(DataFrame)
     return DataFrame
 
 
-def Meldpuntenquery(b3s, KiKo, NumLigne, conn_meldpunten):
+def Meldpuntenquery(b3s, KiKo, NumLigne):
     # Cree une requete pour SQL pour extraire une DF depuis sql
-    ColumnInDF = """ KiKo, NumLigne, Type_Message, Priorite, Sens, Type_Gestion, Power, X_effectif_webmerc, 
+    ColumnInDF = """ KiKo, NumLigne, Type_Message, Priorite, Sens, Type_Gestion, Power, X_effectif_webmerc,
     Y_effectif_webmerc, TpsTheoriques """
     query = 'SELECT' + ColumnInDF + 'FROM ' + b3s + ' WHERE KiKo IN ' + KiKo + ' AND NumLigne IN ' + NumLigne + ';'
-    Dataframe = pdsql.read_sql_query(query, conn_meldpunten)
+    Dataframe = pd.read_sql_query(query, meldpunten_engine)
     # Dataframe['TpsTheoriques'] = Dataframe.apply(lambda row: float(row['TpsTheorique']), axis=1)
     return Dataframe
 
 
 # Recupère les valeurs de base pour travailler sur la db
-ListKiKoStr, ListKiKo = list_kiko(CurrentB3S, conn)
-ListlignesStr, ListLignes = list_lignes(CurrentB3S, conn)
-LastDateStr, LastDateTimestamp = last_date(CurrentB3S, conn)
+ListKiKoStr, ListKiKo = list_kiko(CurrentB3S)
+ListlignesStr, ListLignes = list_lignes(CurrentB3S)
+LastDateStr, LastDateTimestamp = last_date(CurrentB3S)
 
 # cree un Column Data Source lisible par bokeh et utilisee par les graphes
 StartDict = dict(Jour=[], NumLigne=[], H_VA=[], H_AA=[], H_LF=[], H_AF=[], KiKo=[], NumParc=[], WeekDay=[], TpsVA_LF=[],
@@ -187,11 +185,9 @@ def vitesses_mediannes(df):
     DAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
     d = {'heure': [], 'Lun': [], 'Mar': [], 'Mer': [], 'Jeu': [], 'Ven': [], 'Sam': [], 'Dim': []}
     heure1 = pd.to_datetime('1900-01-01 00:00:00')
-    # time_range = pd.PeriodIndex(start='1900-01-01 00:00:00', end='1900-01-01 00:30:00', freq='30Min')
     for i in range(48):
         templist = []
         heure2 = heure1 + pd.Timedelta(minutes=30)
-        # time_range += 1
         for day in DAYS:
             d[day].append(df['SpeedVA_AF'][(df['H_VA'] > heure1) & (df['H_VA'] < heure2) & (df['WeekDay'] == day)].mean(
                 skipna=True))
@@ -203,10 +199,8 @@ def vitesses_mediannes(df):
 
 def vitesse_df(Dataframe):
     VitesseDF = vitesses_mediannes(Dataframe)
-    # VitesseDF['heure'] = VitesseDF['heure'].astype(str).str[-8:-3]
     VitesseDF = VitesseDF.set_index('heure')
     VitesseDF.columns.name = 'Jour'
-    # hours = list(VitesseDF.index)
     VitesseSource = pd.DataFrame(VitesseDF.stack(), columns=['rate']).reset_index()
     return VitesseSource
 
@@ -299,13 +293,10 @@ def update_database():
     newNumLigne = multi_select_Lignes.value
     newNumLigne = List_to_SQL(newNumLigne)
     newStartDate = DeltaDates.value_as_datetime[0].strftime('%Y-%m-%d %H:%M:%S')
-
     newEndDate = DeltaDates.value_as_datetime[1].strftime('%Y-%m-%d %H:%M:%S')
 
-    conn = sql.connect(SQLiteDir + '/Hermes3.db')
-
     # mise a jour des Datasource des donnees vehicules pour la carte et le graphes des données
-    NewDataFrame = SQLquery(newb3s, newKiKo, newNumLigne, newStartDate, newEndDate, conn)
+    NewDataFrame = SQLquery(newb3s, newKiKo, newNumLigne, newStartDate, newEndDate)
     events_sources.data = dict(Jour=NewDataFrame['Jour'], NumLigne=NewDataFrame['NumLigne'],
                                H_VA=NewDataFrame['H_VA'], H_AA=NewDataFrame['H_AA'],
                                H_LF=NewDataFrame['H_LF'], H_AF=NewDataFrame['H_AF'],
@@ -319,7 +310,7 @@ def update_database():
                                JourDatetime=NewDataFrame['JourDatetime'])
 
     # mise a jour des Datasource des donnees theoriques pour la carte
-    NewMeldpuntenDataFrame = Meldpuntenquery(newb3s, newKiKo, newNumLigne, conn_meldpunten)
+    NewMeldpuntenDataFrame = Meldpuntenquery(newb3s, newKiKo, newNumLigne)
     meldpunten_source.data = dict(KiKo=NewMeldpuntenDataFrame['KiKo'],
                                   NumLigne=NewMeldpuntenDataFrame['NumLigne'],
                                   Type_Message=NewMeldpuntenDataFrame['Type_Message'],
@@ -358,7 +349,7 @@ def update_database():
         NewDataFrame['TpsLF_AF'].median())[:6] + '\n' + str(NewDataFrame['TpsLF_AF'].std())[:6])
 
     GlyphSource.data["text"] = [label_text_lignes, label_text_VA_LF, label_text_AA_LF, label_text_LF_AF]
-    conn.commit()
+    #conn.commit()
 
 
 def update_b3s():
@@ -366,13 +357,13 @@ def update_b3s():
     newb3s = B3SSelect.value
 
     # Changements des KiKos
-    NewListKiKoStr, NewListKiKo = list_kiko(newb3s, conn)
+    NewListKiKoStr, NewListKiKo = list_kiko(newb3s)
 
     multi_select_KiKo.value = NewListKiKo
     multi_select_KiKo.options = NewListKiKo
 
     # Changement des Lignes
-    NewListlignesStr, NewListLignes = list_lignes(newb3s, conn)
+    NewListlignesStr, NewListLignes = list_lignes(newb3s)
     multi_select_Lignes.value = NewListLignes
     multi_select_Lignes.options = NewListLignes
 
@@ -397,6 +388,5 @@ layout = column(
 update_database()
 output_file('Hermes3.html')
 curdoc().add_root(layout)
-show(layout)
 
-# conn.close()
+# show(layout) a utiliser sans "bokeh serve"
