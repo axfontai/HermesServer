@@ -7,10 +7,10 @@ import pyproj
 
 #cree une Base de Données formatée a partir des CSV extraits de excel
 
-os.chdir("/Users/griceldacalzada/Documents/Python/TestCarrefoursFeux")
+os.chdir("C:\\Users\\afontaine\\Documents\\Python\\SQLite")
 DirTestCarrefoursFeu = os.getcwd()
-DirCSV: str = DirTestCarrefoursFeu+"/CSV"
-DirSQlite = DirTestCarrefoursFeu+"/SQLite"
+DirCSV: str = DirTestCarrefoursFeu+"\\Excel\\CSV"
+DirSQlite = DirTestCarrefoursFeu
 #prends les fichier ci dessus comme fichiers de travail
 
 list_in_hermes = []
@@ -19,7 +19,7 @@ with open('InHermes', 'r') as in_hermes_test:
     in_hermes = in_hermes_test.read()
     list_in_hermes = in_hermes.split(';')
 
-connection = sqlite3.connect(DirSQlite+"/Hermes3.db")
+connection = sqlite3.connect(DirSQlite+"\\Hermes2018.db")
 c = connection.cursor()
 #Connect to SQLite database
 
@@ -79,7 +79,6 @@ def delta_t(t2, t1):
 Commit = True
 for CSVfile in os.listdir(DirCSV):
     #pour tout les fichiers CSV dans le répertoire
-    print(CSVfile)
     if CSVfile == ".DS_Store":
         continue
     #Sur Mac chaque fichier contient un DS_Store qui ne peut être lu
@@ -92,26 +91,26 @@ for CSVfile in os.listdir(DirCSV):
                 #se connecte a la base de données
                 if i == ligne:
                     tempB3S = "B3S" + str(int(row[1][-5:-2]))
-                    SqliteTable = ''' CREATE TABLE IF NOT EXISTS {} 
-                                            ( Jour text, NumCarrefour text, 
-                                            NomCarrefour text, NumLigne text, 
-                                            Sens text, H_VA text, X_VA real, 
-                                            Y_VA real, P_VA integer, 
-                                            H_AA text, X_AA real, 
-                                            Y_AA real, P_AA integer, 
-                                            H_LF text, X_LF real, 
-                                            Y_LF real, H_AF text, 
-                                            X_AF real, Y_AF real, 
-                                            P_AF integer, TpsFranchissement text, 
+                    SqliteTable = ''' CREATE TABLE IF NOT EXISTS {}
+                                            ( Jour text, NumCarrefour text,
+                                            NomCarrefour text, NumLigne text,
+                                            Sens text, H_VA text, X_VA real,
+                                            Y_VA real, P_VA integer,
+                                            H_AA text, X_AA real,
+                                            Y_AA real, P_AA integer,
+                                            H_LF text, X_LF real,
+                                            Y_LF real, H_AF text,
+                                            X_AF real, Y_AF real,
+                                            P_AF integer, TpsFranchissement text,
                                             KiKo text, TpsArret_VA_AA text, TpsArret_AA_LF text,
                                             Prio text, NumParc text, WeekDay text,
                                             TpsVA_AA integer, DistVA_AA real, SpeedVA_AA real,
-                                            TpsAA_LF integer, DistAA_LF real, SpeedAA_LF real, 
+                                            TpsAA_LF integer, DistAA_LF real, SpeedAA_LF real,
                                             TpsLF_AF integer, DistLF_AF real, SpeedLF_AF real,
-                                            TpsVA_AF integer, SpeedVA_AF real, 
+                                            TpsVA_AF integer, SpeedVA_AF real,
                                             X_VA_merc real null, Y_VA_merc real null,
                                             X_AA_merc real null, Y_AA_merc real null,
-                                            X_LF_merc real null, Y_LF_merc real null, 
+                                            X_LF_merc real null, Y_LF_merc real null,
                                             X_AF_merc real null, Y_AF_merc  real null
                                             ) ; '''.format(tempB3S)
                     c.execute(SqliteTable)
@@ -176,12 +175,14 @@ for CSVfile in os.listdir(DirCSV):
                             else:
                                 RowValues += str(k) + ','
                         RowValues = RowValues[:len(RowValues) - 1]
-                        #print(RowValues)
-                        insertion = 'INSERT INTO {} VALUES '.format(tempB3S) + '(' + RowValues + ')'
+                        print(RowValuesList[:4])
+                        # print(RowValues)
+                        insertion = 'INSERT OR IGNORE INTO {} VALUES '.format(tempB3S) + '(' + RowValues + ')'
                         c.execute(insertion)
                         connection.commit()
                     Commit = True
                     ligne += 1
+        print(CSVfile)
         list_in_hermes.append(CSVfile)
 
     else:
